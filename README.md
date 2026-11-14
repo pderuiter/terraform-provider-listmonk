@@ -58,3 +58,8 @@ on GitHub are not merged there; open an issue instead.
 
 - [CONTRIBUTING.md](CONTRIBUTING.md): building, testing, docs, upgrading dependencies.
 - [RELEASING.md](RELEASING.md): versioning, the release pipeline, signing keys.
+
+## License
+
+[Mozilla Public License 2.0](LICENSE), the licence of the HashiCorp
+provider scaffolding.
