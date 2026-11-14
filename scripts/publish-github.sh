@@ -9,8 +9,8 @@
 #
 #  1. mirror the tag (and so its commit) to GitHub;
 #  2. create the release as a DRAFT and upload the Registry asset set;
-#  3. publish the draft: only now does the Registry webhook fire, so it never
-#     sees a half-uploaded release;
+#  3. publish the draft: only a published release is visible to the Registry,
+#     so it never sees a half-uploaded one;
 #  4. create the GitLab release, linking Nexus, GitHub and the Registry.
 #
 # Idempotent: a published GitHub release is left alone (only checked); a
@@ -18,7 +18,7 @@
 set -eu
 
 : "${CI_COMMIT_TAG:?tag pipelines only}"
-: "${GITHUB_REPOSITORY:?}" "${VAULT_SECRET_BASE:?}" "${VAULT_NEXUS_PATH:?}"
+: "${GITHUB_REPOSITORY:?}" "${VAULT_GITHUB_PATH:?}" "${VAULT_NEXUS_PATH:?}"
 : "${NEXUS_URL:?}" "${NEXUS_RAW_REPO:?}"
 apk add --no-cache git gnupg curl jq >/dev/null
 git config --global --add safe.directory "$(pwd)"
@@ -34,7 +34,7 @@ trap 'rm -rf "${work}"' EXIT
 # shellcheck source=scripts/vault.sh
 . scripts/vault.sh
 vault_login
-GITHUB_TOKEN="$(vault_kv "${VAULT_SECRET_BASE}/github" token)"
+GITHUB_TOKEN="$(vault_kv "${VAULT_GITHUB_PATH}" token)"
 export GITHUB_TOKEN
 host="$(printf '%s' "${NEXUS_URL}" | sed -E 's#^https?://([^/:]+).*#\1#')"
 printf 'machine %s login %s password %s\n' "${host}" \
