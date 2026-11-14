@@ -1,6 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["local>wbyc/infra/renovate-config"],
+  "description": "gomodTidy: dependency bumps in tools/ (tfplugindocs) need go.sum entries for indirect modules; without tidy, goldmark 1.7.17 (MR !2) broke go generate.",
+  "postUpdateOptions": ["gomodTidy"],
   "packageRules": [
     {
       "description": "Provider protocol libraries move together",
