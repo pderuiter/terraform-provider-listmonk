@@ -1,0 +1,119 @@
+package client
+
+import (
+	"bytes"
+	"encoding/json"
+	"strings"
+)
+
+// maskRune is what listmonk replaces each character of a secret with in
+// GET /api/settings (cmd/settings.go pwdMask).
+const maskRune = '•'
+
+// IsMasked reports whether s is a secret masked by listmonk: a non-empty
+// string made only of mask characters.
+func IsMasked(s string) bool {
+	if s == "" {
+		return false
+	}
+	return strings.Trim(s, string(maskRune)) == ""
+}
+
+// SettingMatches reports whether the server value of a setting still
+// satisfies the configured value, so Terraform shows no diff.
+//
+// The server value may legitimately differ from what was written:
+//   - secrets (SMTP passwords, API keys, ...) come back masked;
+//   - objects gain server-side fields (e.g. a uuid on every SMTP server).
+//
+// So the configured value matches when every field it sets is present on the
+// server with the same value, a masked server string matches any configured
+// string, and arrays match element by element with equal length.
+func SettingMatches(configured, server json.RawMessage) bool {
+	var c, s any
+	if err := decodeJSON(configured, &c); err != nil {
+		return false
+	}
+	if err := decodeJSON(server, &s); err != nil {
+		return false
+	}
+	return subsetMatch(c, s)
+}
+
+func subsetMatch(c, s any) bool {
+	switch cv := c.(type) {
+	case map[string]any:
+		sv, ok := s.(map[string]any)
+		if !ok {
+			return false
+		}
+		for k, v := range cv {
+			sub, ok := sv[k]
+			if !ok || !subsetMatch(v, sub) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		sv, ok := s.([]any)
+		if !ok || len(sv) != len(cv) {
+			return false
+		}
+		for i := range cv {
+			if !subsetMatch(cv[i], sv[i]) {
+				return false
+			}
+		}
+		return true
+	case string:
+		sv, ok := s.(string)
+		if !ok {
+			return false
+		}
+		return sv == cv || IsMasked(sv)
+	case json.Number:
+		sv, ok := s.(json.Number)
+		if !ok {
+			return false
+		}
+		if sv == cv {
+			return true
+		}
+		// 10 and 10.0 are the same number.
+		cf, err1 := cv.Float64()
+		sf, err2 := sv.Float64()
+		return err1 == nil && err2 == nil && cf == sf
+	default:
+		// bool, nil
+		return c == s
+	}
+}
+
+// blankMasked returns v with every masked secret string replaced by "".
+func blankMasked(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		for k, e := range t {
+			t[k] = blankMasked(e)
+		}
+		return t
+	case []any:
+		for i, e := range t {
+			t[i] = blankMasked(e)
+		}
+		return t
+	case string:
+		if IsMasked(t) {
+			return ""
+		}
+		return t
+	default:
+		return v
+	}
+}
+
+func decodeJSON(raw json.RawMessage, out *any) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	return dec.Decode(out)
+}
