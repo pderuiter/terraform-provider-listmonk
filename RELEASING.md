@@ -15,7 +15,7 @@ tag pipeline (vX.Y.Z)
                └─ sign:cosign  *.sigstore.json (estate cosign key, Vault transit)
              publish:nexus     → nexus.bsdserver.nl/repository/terraform-providers/pderuiter/listmonk/<version>/
              publish:github    fetch from Nexus, verify checksums + signature, mirror tag,
-                               draft release + assets → publish (Registry webhook), GitLab release
+                               draft release + assets → publish (Registry ingests it), GitLab release
              verify:registry   terraform init from registry.terraform.io (signature checked)
 ```
 
@@ -65,19 +65,21 @@ settings → versions); leave the tag.
 | What                       | Where                                                 |
 |----------------------------|-------------------------------------------------------|
 | GPG signing key            | Vault `secret/wbyc/prd/infra/terraform-registry/gpg`: `private_key` (ASCII-armoured), `passphrase`, `public_key` (reference copy; CI checks against the committed `.asc`, not this) |
-| GitHub token               | Vault `secret/wbyc/prd/infra/terraform-registry/github`: `token` |
+| GitHub token               | Vault `secret/wbyc/prd/infra/github/pderuiter`: `token` (shared by every provider repository; adopted by terragrunt-live prd/security/vault-management) |
 | Nexus upload               | Vault `secret/prod/nexus/ci-publish` (service account `ci-publish`, managed by prd/infra/nexus-security) |
 | cosign                     | Vault transit key `cosign-estate` (never leaves Vault) |
 | Vault login                | JWT role `gitlab-ci-terraform-registry` (`RELEASE_VAULT_ROLE`), bound to this project's protected refs |
 | Tag push                   | group access token `PROJECT_ACCESS_TOKEN` on wbyc/infra/iac/terraform |
 
 The shared `gitlab-ci` Vault policy explicitly denies
-`secret/wbyc/prd/infra/terraform-registry/*`: only the release role can read
-the signing key, and only from protected refs of this project.
+`secret/wbyc/prd/infra/terraform-registry/*` and `secret/wbyc/prd/infra/github/*`:
+only the release role can read the signing key and the GitHub token, and only
+from protected refs of the provider projects.
 
-The GitHub token is a fine-grained PAT of `pderuiter` limited to the
-`terraform-provider-listmonk` repository with *Contents: read and write*
-(push, releases) and *Metadata: read*.
+The GitHub token is a fine-grained PAT of `pderuiter` limited to the provider
+repositories (`terraform-provider-listmonk`, `terraform-provider-haproxy-dataplane`)
+with *Contents: read and write* (push, releases) and *Metadata: read*. A new
+provider is added to that token's repository list, not given its own token.
 
 The signing key must be RSA or DSA (Registry requirement) and its public half
 registered at registry.terraform.io → pderuiter → Settings → Signing Keys. The
@@ -105,8 +107,8 @@ signed, but its passphrase is lost, so nothing new can be signed with it.
 1. GitHub: public repo `pderuiter/terraform-provider-listmonk`, no branch
    protection that blocks the mirror; issues on, PRs answered with a pointer to
    GitLab.
-2. Registry: registry.terraform.io → Publish → Provider → that repo. This
-   installs the release webhook.
+2. Registry: registry.terraform.io → Publish → Provider → that repo. The
+   Registry then picks up every published GitHub release.
 3. GitLab: project under wbyc/infra/iac/terraform (inherits
    `PROJECT_ACCESS_TOKEN`), `main` and `v*` tags protected.
 4. Nexus: raw repository `terraform-providers` (ALLOW_ONCE) and the
@@ -118,7 +120,6 @@ signed, but its passphrase is lost, so nothing new can be signed with it.
 ## When the Registry does not show a release
 
 `verify:registry` fails after 15 minutes. Check, in order: the GitHub release
-has all assets (`_SHA256SUMS`, `.sig`, `_manifest.json`, zips); the webhook's
-recent deliveries on GitHub (Settings → Webhooks); then **Resync** on the
-provider's Registry settings page. A signature error in the Registry means the
+has all assets (`_SHA256SUMS`, `.sig`, `_manifest.json`, zips); then
+**Resync** on the provider's Registry settings page. A signature error in the Registry means the
 key in Vault is not one registered for the namespace.

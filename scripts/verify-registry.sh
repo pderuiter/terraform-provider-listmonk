@@ -17,8 +17,8 @@ deadline=$(( $(date +%s) + WAIT_SECONDS ))
 until curl -fsS "${url}" | grep -q "\"version\":\"${VERSION}\""; do
   if [ "$(date +%s)" -ge "${deadline}" ]; then
     echo "ERROR: ${PROVIDER} ${VERSION} not on the Registry after ${WAIT_SECONDS}s." >&2
-    echo "Check the registry.terraform.io webhook on the GitHub repository (Settings -> Webhooks)" >&2
-    echo "or use Resync on the provider's settings page in the Registry." >&2
+    echo "Check that the GitHub release is published with every asset, then use" >&2
+    echo "Resync on the provider's settings page in the Registry." >&2
     exit 1
   fi
   echo "Waiting for the Registry to ingest ${PROVIDER} ${VERSION}..."

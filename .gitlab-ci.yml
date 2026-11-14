@@ -54,8 +54,10 @@ variables:
   # vault-jwt-auth). Its own variable, like COSIGN_VAULT_ROLE: the wbyc group
   # variable VAULT_AUTH_ROLE would override a YAML VAULT_AUTH_ROLE.
   RELEASE_VAULT_ROLE: "gitlab-ci-terraform-registry"
-  # KV v2 paths under secret/: gpg {private_key, passphrase}, github {token}.
+  # KV v2 paths under secret/: gpg {private_key, passphrase}.
   VAULT_SECRET_BASE: "wbyc/prd/infra/terraform-registry"
+  # GitHub PAT {token}, shared by every provider repository (vault-management).
+  VAULT_GITHUB_PATH: "wbyc/prd/infra/github/pderuiter"
   # Nexus service account ci-publish {username, password} (prd/infra/nexus-security).
   VAULT_NEXUS_PATH: "prod/nexus/ci-publish"
   NEXUS_URL: "https://nexus.bsdserver.nl"
@@ -196,7 +198,7 @@ mirror:github:
   script:
     - . scripts/vault.sh
     - vault_login
-    - export GITHUB_TOKEN="$(vault_kv "${VAULT_SECRET_BASE}/github" token)"
+    - export GITHUB_TOKEN="$(vault_kv "${VAULT_GITHUB_PATH}" token)"
     - scripts/github-mirror.sh branch
   rules:
     - !reference [.release_vault, rules]
@@ -299,8 +301,8 @@ verify:registry:
   script:
     - export TERRAFORM="$(TF_VERSION="${TF_VERSION_LATEST}" scripts/install-terraform.sh)"
     - VERSION="${CI_COMMIT_TAG#v}" scripts/verify-registry.sh
-  # Registry ingestion is outside this pipeline's control (webhook, GitHub
-  # outages); a failure here means "go look", not "the release is broken".
+  # Registry ingestion is outside this pipeline's control (Registry or GitHub
+  # delays); a failure here means "go look", not "the release is broken".
   allow_failure: true
   rules:
     - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
