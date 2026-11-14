@@ -1,0 +1,50 @@
+# Based on hashicorp/terraform-provider-scaffolding-framework.
+version: "2"
+linters:
+  default: none
+  enable:
+    - copyloopvar
+    - depguard
+    - durationcheck
+    - errcheck
+    - forcetypeassert
+    - gosec
+    - ineffassign
+    - makezero
+    - misspell
+    - nilerr
+    - predeclared
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+    - usetesting
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Tests build fixtures with unchecked type assertions on purpose.
+      - path: _test\.go
+        linters: [forcetypeassert]
+    paths:
+      - .go$
+      - .go-cache$
+      - .cache$
+  settings:
+    depguard:
+      rules:
+        main:
+          list-mode: lax
+          deny:
+            - pkg: "github.com/hashicorp/terraform-plugin-sdk/v2"
+              desc: "Use the Terraform Plugin Framework and terraform-plugin-testing"
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt

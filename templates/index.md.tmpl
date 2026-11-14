@@ -1,0 +1,47 @@
+---
+page_title: "listmonk Provider"
+description: |-
+  Manage listmonk mailing lists, templates, subscribers, users, roles and settings as code.
+---
+
+# listmonk Provider
+
+The listmonk provider manages a [listmonk](https://listmonk.app) newsletter and mailing list
+manager through its REST API: lists, e-mail templates, subscribers, users, user and list roles,
+and instance settings.
+
+## Compatibility
+
+The provider is tested against listmonk **v5.1** and **v6.2**. Users and roles need listmonk v4
+or later. Archiving lists (`listmonk_list.status = "archived"`) needs listmonk v6.
+
+## Authentication
+
+Create an API user in listmonk (Admin → Users → **New**, type **API**) with a role that has the
+permissions for what you manage — Super Admin to manage users, roles and settings — and pass its
+username and token to the provider.
+
+The arguments fall back to environment variables, which keeps the token out of configuration:
+
+| Argument               | Environment variable            |
+|------------------------|---------------------------------|
+| `url`                  | `LISTMONK_URL`                  |
+| `username`             | `LISTMONK_USERNAME`             |
+| `api_token`            | `LISTMONK_API_TOKEN`            |
+| `insecure_skip_verify` | `LISTMONK_INSECURE_SKIP_VERIFY` |
+| `timeout`              | `LISTMONK_TIMEOUT`              |
+
+## Example Usage
+
+{{ tffile "examples/provider/provider.tf" }}
+
+## Behaviour worth knowing
+
+- **Settings changes reload listmonk.** The provider serialises settings writes and retries
+  while listmonk restarts. A running campaign postpones the reload until it finishes.
+- **Some values cannot be cleared.** listmonk ignores empty values for a list `description` and a
+  template `body_source`, so removing them from configuration keeps the current value.
+- **Secrets are write-only.** listmonk never returns passwords, API tokens or masked settings
+  secrets, so changes to them made outside Terraform are not detected.
+
+{{ .SchemaMarkdown | trimspace }}

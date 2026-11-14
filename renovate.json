@@ -1,0 +1,11 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["local>wbyc/infra/renovate-config"],
+  "packageRules": [
+    {
+      "description": "Provider protocol libraries move together",
+      "matchPackageNames": ["github.com/hashicorp/terraform-plugin-{/,}**"],
+      "groupName": "terraform-plugin libraries"
+    }
+  ]
+}
