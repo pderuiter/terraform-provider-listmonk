@@ -7,6 +7,7 @@ description: |-
   listmonk reloads itself after a settings change; the provider waits for it to come back.
   Settings always exist, so destroying this resource only stops managing the key: the value stays as it is.
   Secrets (SMTP passwords, API keys) are masked when listmonk returns settings, so changes to them made outside Terraform are not detected. Fields that listmonk adds on its own (such as the uuid of each SMTP server) are not drift either: only the fields in value are compared.
+  For smtp, every server must set the duration fields the listmonk version has (idle_timeout, wait_timeout and, from v6, msg_retry_delay). A field left out is stored as "" by the next full settings save and listmonk then fails to start, so the provider rejects such a value.
 ---
 
 # listmonk_setting (Resource)
@@ -18,6 +19,8 @@ listmonk reloads itself after a settings change; the provider waits for it to co
 Settings always exist, so destroying this resource only stops managing the key: the value stays as it is.
 
 Secrets (SMTP passwords, API keys) are masked when listmonk returns settings, so changes to them made outside Terraform are not detected. Fields that listmonk adds on its own (such as the `uuid` of each SMTP server) are not drift either: only the fields in `value` are compared.
+
+For `smtp`, every server must set the duration fields the listmonk version has (`idle_timeout`, `wait_timeout` and, from v6, `msg_retry_delay`). A field left out is stored as `""` by the next full settings save and listmonk then fails to start, so the provider rejects such a value.
 
 ## Example Usage
 
@@ -43,6 +46,9 @@ resource "listmonk_setting" "individual_tracking" {
 }
 
 # The SMTP password is write-only: listmonk masks it when read back.
+# Set every duration field: one left out is stored as "" by the next full
+# settings save, and listmonk then fails to start. msg_retry_delay exists
+# from listmonk v6; leave it out for v5.
 resource "listmonk_setting" "smtp" {
   key = "smtp"
   value = jsonencode([{
@@ -58,6 +64,7 @@ resource "listmonk_setting" "smtp" {
     max_msg_retries = 2
     idle_timeout    = "15s"
     wait_timeout    = "5s"
+    msg_retry_delay = "10s"
     tls_type        = "STARTTLS"
     tls_skip_verify = false
   }])

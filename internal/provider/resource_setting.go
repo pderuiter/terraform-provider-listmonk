@@ -54,7 +54,10 @@ func (r *settingResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"as it is.\n\n" +
 			"Secrets (SMTP passwords, API keys) are masked when listmonk returns settings, so changes to them " +
 			"made outside Terraform are not detected. Fields that listmonk adds on its own (such as the `uuid` " +
-			"of each SMTP server) are not drift either: only the fields in `value` are compared.",
+			"of each SMTP server) are not drift either: only the fields in `value` are compared.\n\n" +
+			"For `smtp`, every server must set the duration fields the listmonk version has (`idle_timeout`, " +
+			"`wait_timeout` and, from v6, `msg_retry_delay`). A field left out is stored as `\"\"` by the next " +
+			"full settings save and listmonk then fails to start, so the provider rejects such a value.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				MarkdownDescription: "Same as `key`.",
@@ -96,6 +99,11 @@ func (r *settingResource) write(ctx context.Context, key string, value jsontypes
 	}
 
 	raw := json.RawMessage(value.ValueString())
+	if key == "smtp" {
+		if err := client.CheckSMTPDurations(raw, settings[key]); err != nil {
+			return err
+		}
+	}
 	if err := r.client.UpdateSetting(ctx, key, raw); err != nil {
 		return err
 	}

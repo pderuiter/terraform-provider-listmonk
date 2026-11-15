@@ -5,6 +5,15 @@ on each [GitHub release](https://github.com/pderuiter/terraform-provider-listmon
 This file records what those notes cannot: upgrade instructions and
 behaviour changes users must act on.
 
+## Unreleased
+
+- `listmonk_setting` with `key = "smtp"` now rejects a server that leaves out
+  a duration field the listmonk version has (`idle_timeout`, `wait_timeout`
+  and, from listmonk v6, `msg_retry_delay`) or sets one that is not a
+  duration. listmonk stores a missing duration as `""` on the next full
+  settings save and then fails to start. On listmonk v6, add
+  `msg_retry_delay` (e.g. `"10s"`) to every SMTP server before upgrading.
+
 ## 0.1.0 (unreleased)
 
 First release.

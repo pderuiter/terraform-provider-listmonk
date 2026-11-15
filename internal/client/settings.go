@@ -3,7 +3,9 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
+	"time"
 )
 
 // maskRune is what listmonk replaces each character of a secret with in
@@ -87,6 +89,57 @@ func subsetMatch(c, s any) bool {
 		// bool, nil
 		return c == s
 	}
+}
+
+// smtpDurationFields are the duration strings of an SMTP server entry.
+// idle_timeout and wait_timeout exist in every supported listmonk version;
+// msg_retry_delay was added in v6 and is only checked when the server knows it.
+var smtpDurationFields = []string{"idle_timeout", "wait_timeout", "msg_retry_delay"}
+
+// CheckSMTPDurations reports an error when a configured SMTP server leaves out
+// a duration field that the server has, or sets one that is not a duration.
+//
+// PUT /api/settings/smtp stores the value as given, so a missing field is not
+// noticed at first. The next full settings save (PUT /api/settings) fills it
+// in as "", and listmonk then fails to start on its next reload with
+// "time: invalid duration". The fields the server has are read from its
+// current entries; with no entries only the fields every version has are
+// checked.
+func CheckSMTPDurations(configured, server json.RawMessage) error {
+	var cfg []map[string]any
+	if err := json.Unmarshal(configured, &cfg); err != nil {
+		// Not a list of servers; listmonk itself rejects or ignores it.
+		return nil
+	}
+	var srv []map[string]any
+	_ = json.Unmarshal(server, &srv)
+
+	known := map[string]bool{"idle_timeout": true, "wait_timeout": true}
+	for _, entry := range srv {
+		for _, f := range smtpDurationFields {
+			if _, ok := entry[f]; ok {
+				known[f] = true
+			}
+		}
+	}
+
+	for i, entry := range cfg {
+		for _, f := range smtpDurationFields {
+			if !known[f] {
+				continue
+			}
+			v, _ := entry[f].(string)
+			if v == "" {
+				return fmt.Errorf("SMTP server %d (host %v) does not set %s. listmonk stores a missing duration as \"\" "+
+					"on the next full settings save and then fails to start (\"time: invalid duration\"); "+
+					"set it to a duration such as \"10s\"", i, entry["host"], f)
+			}
+			if _, err := time.ParseDuration(v); err != nil {
+				return fmt.Errorf("SMTP server %d (host %v): %s %q is not a duration such as \"10s\"", i, entry["host"], f, v)
+			}
+		}
+	}
+	return nil
 }
 
 // blankMasked returns v with every masked secret string replaced by "".
