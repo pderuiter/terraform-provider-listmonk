@@ -111,33 +111,45 @@ func CheckSMTPDurations(configured, server json.RawMessage) error {
 		// Not a list of servers; listmonk itself rejects or ignores it.
 		return nil
 	}
-	var srv []map[string]any
-	_ = json.Unmarshal(server, &srv)
-
-	known := map[string]bool{"idle_timeout": true, "wait_timeout": true}
-	for _, entry := range srv {
-		for _, f := range smtpDurationFields {
-			if _, ok := entry[f]; ok {
-				known[f] = true
+	fields := knownSMTPDurations(server)
+	for i, entry := range cfg {
+		for _, f := range fields {
+			if err := checkSMTPDuration(i, entry, f); err != nil {
+				return err
 			}
 		}
 	}
+	return nil
+}
 
-	for i, entry := range cfg {
-		for _, f := range smtpDurationFields {
-			if !known[f] {
-				continue
-			}
-			v, _ := entry[f].(string)
-			if v == "" {
-				return fmt.Errorf("SMTP server %d (host %v) does not set %s. listmonk stores a missing duration as \"\" "+
-					"on the next full settings save and then fails to start (\"time: invalid duration\"); "+
-					"set it to a duration such as \"10s\"", i, entry["host"], f)
-			}
-			if _, err := time.ParseDuration(v); err != nil {
-				return fmt.Errorf("SMTP server %d (host %v): %s %q is not a duration such as \"10s\"", i, entry["host"], f, v)
+// knownSMTPDurations returns the duration fields that the server's SMTP
+// entries carry, always including those every version has.
+func knownSMTPDurations(server json.RawMessage) []string {
+	var srv []map[string]any
+	_ = json.Unmarshal(server, &srv)
+
+	known := []string{"idle_timeout", "wait_timeout"}
+	for _, f := range smtpDurationFields[len(known):] {
+		for _, entry := range srv {
+			if _, ok := entry[f]; ok {
+				known = append(known, f)
+				break
 			}
 		}
+	}
+	return known
+}
+
+// checkSMTPDuration checks one duration field of SMTP server i.
+func checkSMTPDuration(i int, entry map[string]any, field string) error {
+	v, _ := entry[field].(string)
+	if v == "" {
+		return fmt.Errorf("SMTP server %d (host %v) does not set %s. listmonk stores a missing duration as \"\" "+
+			"on the next full settings save and then fails to start (\"time: invalid duration\"); "+
+			"set it to a duration such as \"10s\"", i, entry["host"], field)
+	}
+	if _, err := time.ParseDuration(v); err != nil {
+		return fmt.Errorf("SMTP server %d (host %v): %s %q is not a duration such as \"10s\"", i, entry["host"], field, v)
 	}
 	return nil
 }
